@@ -2,10 +2,13 @@
 
 import argparse
 import logging
+import subprocess
 import sys
+from pathlib import Path
 
 from .config import Config
 from .migrator import LinkedInNotionMigrator
+from .post_ui import PostMigrationUI
 
 
 def configure_logging(verbose: bool):
@@ -52,6 +55,20 @@ def parse_arguments() -> argparse.Namespace:
         help="Run browser with UI (overrides config).",
     )
 
+    parser.add_argument(
+        "--no-ui",
+        dest="disable_ui",
+        action="store_true",
+        help="Skip the post management UI after migration.",
+    )
+
+    parser.add_argument(
+        "--streamlit",
+        dest="launch_streamlit",
+        action="store_true",
+        help="Launch Streamlit web UI instead of running migration.",
+    )
+
     return parser.parse_args()
 
 
@@ -61,6 +78,11 @@ def main():
 
     # Configure logging
     configure_logging(args.verbose)
+
+    # Launch Streamlit UI if requested
+    if args.launch_streamlit:
+        launch_streamlit_ui()
+        return
 
     # Load configuration
     config = Config.from_env(args.env_file)
@@ -73,7 +95,31 @@ def main():
 
     # Run migration
     migrator = LinkedInNotionMigrator(config)
-    migrator.migrate()
+    created, skipped = migrator.migrate()
+    logging.info("Migration summary - created %s, skipped %s", created, skipped)
+
+    # Show post management UI after migration (unless disabled)
+    if not args.disable_ui:
+        posts = migrator.get_last_scraped_posts()
+
+        if posts:
+            ui = PostMigrationUI(posts, migrator)
+            ui.run()
+        else:
+            logging.warning("No posts available to show in UI")
+    else:
+        logging.info("Post management UI disabled via --no-ui flag")
+
+
+def launch_streamlit_ui():
+    """Launch the Streamlit web UI."""
+    app_path = Path(__file__).parent / "app.py"
+    logging.info(f"Launching Streamlit UI from {app_path}")
+    try:
+        subprocess.run(["streamlit", "run", str(app_path)], check=True)
+    except FileNotFoundError as exc:
+        logging.error("Streamlit is not installed or not available in PATH.")
+        raise exc
 
 
 if __name__ == "__main__":

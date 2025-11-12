@@ -264,3 +264,113 @@ class NotionClient:
 
         results = response.json().get("results", [])
         return len(results) > 0
+
+    def fetch_all_posts(self) -> List[SavedPost]:
+        """Fetch all posts from the Notion database."""
+        logger.info("Fetching all posts from Notion database")
+        
+        url = f"{self.NOTION_API_BASE_URL}/databases/{self.database_id}/query"
+        posts = []
+        has_more = True
+        start_cursor = None
+        
+        while has_more:
+            payload = {}
+            if start_cursor:
+                payload["start_cursor"] = start_cursor
+            
+            response = self.session.post(url, json=payload)
+            
+            try:
+                response.raise_for_status()
+            except Exception as e:
+                logger.error(f"Failed to fetch posts from Notion: {str(e)} - Response: {response.text}")
+                break
+            
+            data = response.json()
+            results = data.get("results", [])
+            has_more = data.get("has_more", False)
+            start_cursor = data.get("next_cursor")
+            
+            for page in results:
+                post = self._notion_page_to_post(page)
+                if post:
+                    posts.append(post)
+        
+        logger.info(f"Fetched {len(posts)} posts from Notion")
+        return posts
+
+    def _notion_page_to_post(self, page: Dict) -> Optional[SavedPost]:
+        """Convert a Notion page object to a SavedPost."""
+        try:
+            properties = page.get("properties", {})
+            
+            urn = self._get_rich_text_value(properties.get(self.properties.urn, {}))
+            content = self._get_rich_text_value(properties.get(self.properties.content, {}))
+            author = self._get_rich_text_value(properties.get(self.properties.author, {}))
+            url = self._get_url_value(properties.get(self.properties.url, {}))
+            posted_at = self._get_date_value(properties.get(self.properties.posted_at, {}))
+            saved_at = self._get_date_value(properties.get(self.properties.saved_at, {}))
+            
+            if not urn:
+                urn = f"notion:{page.get('id', 'unknown')}"
+
+            if not content:
+                content = self._get_title_value(properties.get(self.properties.title, {}))
+
+            return SavedPost(
+                urn=urn or f"notion:{page.get('id', 'unknown')}",
+                content=content or "LinkedIn saved post",
+                author=author,
+                url=url,
+                posted_at=posted_at,
+                saved_at=saved_at,
+            )
+        except Exception as e:
+            logger.error(f"Error converting Notion page to post: {str(e)}")
+            return None
+
+    @staticmethod
+    def _get_rich_text_value(prop: Dict) -> Optional[str]:
+        """Extract text from a rich_text property."""
+        if prop.get("type") != "rich_text":
+            return None
+        rich_text = prop.get("rich_text", [])
+        if not rich_text:
+            return None
+        return "".join([rt.get("plain_text", "") for rt in rich_text])
+
+    @staticmethod
+    def _get_title_value(prop: Dict) -> Optional[str]:
+        """Extract text from a title property."""
+        if prop.get("type") != "title":
+            return None
+        title = prop.get("title", [])
+        if not title:
+            return None
+        return "".join([t.get("plain_text", "") for t in title])
+
+    @staticmethod
+    def _get_url_value(prop: Dict) -> Optional[str]:
+        """Extract URL from a url property."""
+        if prop.get("type") != "url":
+            return None
+        return prop.get("url")
+
+    @staticmethod
+    def _get_date_value(prop: Dict) -> Optional["datetime"]:
+        """Extract date from a date property."""
+        from datetime import datetime
+        
+        if prop.get("type") != "date":
+            return None
+        date_obj = prop.get("date")
+        if not date_obj:
+            return None
+        start = date_obj.get("start")
+        if not start:
+            return None
+        try:
+            return datetime.fromisoformat(start.replace("Z", "+00:00"))
+        except ValueError:
+            return None
