@@ -7,6 +7,10 @@ import time
 from datetime import datetime
 from typing import Dict, List, Optional
 
+# Fix Windows asyncio issue before any Playwright imports
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 from playwright.sync_api import TimeoutError as PlaywrightTimeout, sync_playwright
 
 from .models import SavedPost
@@ -47,6 +51,7 @@ class LinkedInScraper:
     def start(self):
         """Start the Playwright browser."""
         logger.debug("Starting Playwright browser")
+        # Ensure Windows event loop policy is set (redundant but safe)
         if platform.system() == "Windows":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         self.playwright = sync_playwright().start()
