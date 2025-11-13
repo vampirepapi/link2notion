@@ -123,10 +123,43 @@ For a modern web interface, launch the Streamlit UI:
 python -m src.linkedin_notion_migrator.main --streamlit
 ```
 
-The web UI provides:
-- View and search through all posts in your Notion database
-- Export posts as a single markdown file or ZIP archive
-- Run new migrations directly from the web interface
+The web UI provides 5 main tabs:
+
+#### 1. ⚙️ Settings
+- Configure LinkedIn and Notion credentials directly in the GUI
+- Load configuration from environment variables or enter manually
+- No need to set up a `.env` file if using the GUI
+- View current configuration status
+
+#### 2. 🔍 Scrape LinkedIn
+- Scrape your LinkedIn saved posts with a single click
+- Choose between headless or visible browser mode
+- View scraping progress and results
+- Posts are stored in memory for viewing and exporting
+
+#### 3. 📋 View Posts
+- Browse all your scraped posts or posts from Notion
+- Search posts by content or author
+- View post details including author, dates, URLs, and content
+- Load posts from either LinkedIn scrape or Notion database
+
+#### 4. 📤 Export to Markdown
+- Export posts to markdown without requiring Notion
+- **Single File Export**: Download all posts in one markdown file
+- **Multiple Files Export**: Download each post as a separate file in a ZIP archive
+- Perfect for backup or importing to other platforms
+
+#### 5. 🔄 Sync with Notion
+- Connect and sync posts to your Notion database
+- Scrapes LinkedIn and creates Notion pages
+- Skips existing posts (based on URN)
+- View created vs skipped post metrics
+
+**Key Benefits:**
+- Configure credentials directly in the GUI (no `.env` file required)
+- Export to markdown without Notion (scrape LinkedIn → export markdown)
+- Connect to Notion only when you're ready to sync
+- All features accessible through an intuitive web interface
 
 ## Logging
 
