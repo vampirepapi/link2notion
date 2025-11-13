@@ -1,6 +1,8 @@
 """LinkedIn scraper using Playwright to extract saved posts."""
 
+import asyncio
 import logging
+import platform
 import time
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -45,6 +47,8 @@ class LinkedInScraper:
     def start(self):
         """Start the Playwright browser."""
         logger.debug("Starting Playwright browser")
+        if platform.system() == "Windows":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         self.playwright = sync_playwright().start()
         self.browser = self.playwright.chromium.launch(headless=self.headless)
         self.page = self.browser.new_page()
