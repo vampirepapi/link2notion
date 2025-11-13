@@ -9,12 +9,27 @@ from typing import List, Optional
 
 import streamlit as st
 
-from .config import Config
-from .export import PostExporter
-from .linkedin_scraper import LinkedInScraper
-from .migrator import LinkedInNotionMigrator
-from .models import SavedPost
-from .notion_client import NotionClient
+if __package__:
+    from .config import Config
+    from .export import PostExporter
+    from .linkedin_scraper import LinkedInScraper
+    from .migrator import LinkedInNotionMigrator
+    from .models import SavedPost
+    from .notion_client import NotionClient
+else:
+    import sys
+
+    current_dir = Path(__file__).resolve().parent
+    parent_dir = current_dir.parent
+    if str(parent_dir) not in sys.path:
+        sys.path.insert(0, str(parent_dir))
+
+    from linkedin_notion_migrator.config import Config
+    from linkedin_notion_migrator.export import PostExporter
+    from linkedin_notion_migrator.linkedin_scraper import LinkedInScraper
+    from linkedin_notion_migrator.migrator import LinkedInNotionMigrator
+    from linkedin_notion_migrator.models import SavedPost
+    from linkedin_notion_migrator.notion_client import NotionClient
 
 
 logger = logging.getLogger(__name__)
