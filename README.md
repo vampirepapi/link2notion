@@ -9,6 +9,10 @@ A Python tool that migrates all your saved LinkedIn posts to a Notion database a
 - Creates organized Notion pages for each post with metadata
 - Includes post content, author, URL, and date
 - Comprehensive logging and error handling
+- **Post Management UI** - View, export, and sync posts after migration
+- **Export as Markdown** - Download all posts as markdown files
+- **Sync with Notion** - Re-run migration to sync new posts
+- **Streamlit Web UI** - Modern web interface for managing posts
 
 ## Prerequisites
 
@@ -86,9 +90,11 @@ python -m src.linkedin_notion_migrator.main [OPTIONS]
 
 Options:
   --env-file PATH       Path to environment file (.env)
-  --verbose            Enable verbose logging
-  --headless           Run browser in headless mode (overrides config)
-  --no-headless        Run browser with UI (overrides config)
+  --verbose             Enable verbose logging
+  --headless            Run browser in headless mode (overrides config)
+  --no-headless         Run browser with UI (overrides config)
+  --no-ui               Skip the post management CLI UI after migration
+  --streamlit           Launch the Streamlit web UI instead of the CLI flow
 ```
 
 The tool will:
@@ -96,7 +102,31 @@ The tool will:
 2. Navigate to your saved posts
 3. Extract all post data
 4. Create a Notion page for each post
-5. Display progress and completion status
+5. Display the post management UI for additional actions
+
+### Post Management UI
+
+After migration completes, an interactive UI will be displayed with these options:
+
+1. **View all posts** - Browse the scraped posts with author, URL, and date information
+2. **Export posts as Markdown** - Generate markdown files for all posts
+3. **Sync posts with Notion** - Re-sync posts with your Notion database
+4. **Exit** - Close the UI
+
+See [POST_MANAGEMENT_GUIDE.md](POST_MANAGEMENT_GUIDE.md) for a full walkthrough.
+
+### Streamlit Web UI
+
+For a modern web interface, launch the Streamlit UI:
+
+```bash
+python -m src.linkedin_notion_migrator.main --streamlit
+```
+
+The web UI provides:
+- View and search through all posts in your Notion database
+- Export posts as a single markdown file or ZIP archive
+- Run new migrations directly from the web interface
 
 ## Logging
 

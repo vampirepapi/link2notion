@@ -18,6 +18,9 @@ class LinkedInNotionMigrator:
     def __init__(self, config: Config):
         """Initialize the migrator with configuration."""
         self.config = config
+        self._last_scraped_posts: List[SavedPost] = []
+        self._last_created_count: int = 0
+        self._last_skipped_count: int = 0
 
     def migrate(self) -> Tuple[int, int]:
         """Execute the migration process."""
@@ -27,13 +30,19 @@ class LinkedInNotionMigrator:
 
         logger.info("Step 1: Scraping LinkedIn saved posts...")
         posts = self._scrape_linkedin_posts()
+        self._last_scraped_posts = posts
 
         if not posts:
+            self._last_created_count = 0
+            self._last_skipped_count = 0
             logger.warning("No posts found to migrate")
             return 0, 0
 
         logger.info(f"Step 2: Creating {len(posts)} Notion pages...")
         created, skipped = self._create_notion_pages(posts)
+
+        self._last_created_count = created
+        self._last_skipped_count = skipped
 
         logger.info("=" * 80)
         logger.info(f"Migration complete! Created: {created}, Skipped: {skipped}")
@@ -80,3 +89,23 @@ class LinkedInNotionMigrator:
                 skipped += 1
 
         return created, skipped
+
+    def sync_posts_with_notion(self, posts: List[SavedPost]) -> Tuple[int, int]:
+        """Sync provided posts with Notion database."""
+        logger.info(f"Syncing {len(posts)} posts with Notion")
+        created, skipped = self._create_notion_pages(posts)
+        self._last_created_count = created
+        self._last_skipped_count = skipped
+        return created, skipped
+
+    def get_last_scraped_posts(self) -> List[SavedPost]:
+        """Get the posts from the last migration run."""
+        return list(self._last_scraped_posts)
+
+    def get_last_created_count(self) -> int:
+        """Get the number of pages created in the last run."""
+        return self._last_created_count
+
+    def get_last_skipped_count(self) -> int:
+        """Get the number of skipped pages in the last run."""
+        return self._last_skipped_count
