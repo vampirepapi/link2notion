@@ -1,4 +1,4 @@
-requests>=2.31.0
-playwright>=1.39.0
-python-dotenv>=1.0.0
-streamlit>=1.28.0
+requests>=2.32.5
+playwright>=1.56.0
+python-dotenv>=1.2.1
+streamlit>=1.51.0
