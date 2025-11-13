@@ -187,6 +187,17 @@ Logs are displayed in the console with timestamps and log levels.
 - Verify you have saved posts at https://www.linkedin.com/my-items/saved-posts/
 - Check the browser console logs for scraping errors
 
+## Future Vision
+
+This project is currently a functional Python MVP. For the long-term product vision and architectural roadmap, see the [LinkedMash Design Document v1.0](./docs/linkedmash_design_document_v1.md) which outlines plans for:
+- Multi-user SaaS architecture
+- AI-powered features (chat, auto-labeling, semantic search)
+- Multiple export destinations (Google Sheets, Airtable)
+- Background sync and automation
+- Modern Next.js web application
+
+The design document serves as a north star for future development while this Python implementation continues to provide immediate value.
+
 ## License
 
 MIT
