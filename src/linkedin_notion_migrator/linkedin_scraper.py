@@ -53,26 +53,32 @@ class LinkedInScraper:
         logger.debug("Starting Playwright browser")
         # Fix Windows asyncio issue with Playwright
         if platform.system() == "Windows":
+            # Set the event loop policy to WindowsSelectorEventLoopPolicy
+            # This MUST be done before Playwright creates any event loops
             policy = asyncio.WindowsSelectorEventLoopPolicy()
             asyncio.set_event_loop_policy(policy)
+            logger.debug("Set Windows event loop policy to SelectorEventLoopPolicy")
 
-            proactor_loop_cls = getattr(asyncio, "ProactorEventLoop", None)
-
+            # Clear any existing event loop to force Playwright to create a new one
+            # using the SelectorEventLoopPolicy we just set
             try:
                 loop = asyncio.get_event_loop()
-            except RuntimeError:
-                loop = policy.new_event_loop()
-                asyncio.set_event_loop(loop)
-            else:
-                # Replace running Proactor event loop with Selector event loop
-                if proactor_loop_cls and isinstance(loop, proactor_loop_cls):
-                    if loop.is_running():
-                        asyncio.set_event_loop(policy.new_event_loop())
-                    else:
+                loop_type = type(loop).__name__
+                logger.debug(f"Current event loop type: {loop_type}")
+                
+                # Close and remove any existing ProactorEventLoop
+                if not loop.is_running() and not loop.is_closed():
+                    try:
                         loop.close()
-                        asyncio.set_event_loop(policy.new_event_loop())
-                elif loop.is_closed():
-                    asyncio.set_event_loop(policy.new_event_loop())
+                        logger.debug("Closed existing event loop")
+                    except Exception as e:
+                        logger.debug(f"Failed to close event loop: {e}")
+                
+                # Set event loop to None to force Playwright to create a new one
+                asyncio.set_event_loop(None)
+                logger.debug("Cleared event loop to force Playwright to create new SelectorEventLoop")
+            except RuntimeError:
+                logger.debug("No existing event loop found")
         self.playwright = sync_playwright().start()
         self.browser = self.playwright.chromium.launch(headless=self.headless)
         self.page = self.browser.new_page()
