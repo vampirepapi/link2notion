@@ -51,9 +51,28 @@ class LinkedInScraper:
     def start(self):
         """Start the Playwright browser."""
         logger.debug("Starting Playwright browser")
-        # Ensure Windows event loop policy is set (redundant but safe)
+        # Fix Windows asyncio issue with Playwright
         if platform.system() == "Windows":
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            policy = asyncio.WindowsSelectorEventLoopPolicy()
+            asyncio.set_event_loop_policy(policy)
+
+            proactor_loop_cls = getattr(asyncio, "ProactorEventLoop", None)
+
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = policy.new_event_loop()
+                asyncio.set_event_loop(loop)
+            else:
+                # Replace running Proactor event loop with Selector event loop
+                if proactor_loop_cls and isinstance(loop, proactor_loop_cls):
+                    if loop.is_running():
+                        asyncio.set_event_loop(policy.new_event_loop())
+                    else:
+                        loop.close()
+                        asyncio.set_event_loop(policy.new_event_loop())
+                elif loop.is_closed():
+                    asyncio.set_event_loop(policy.new_event_loop())
         self.playwright = sync_playwright().start()
         self.browser = self.playwright.chromium.launch(headless=self.headless)
         self.page = self.browser.new_page()
