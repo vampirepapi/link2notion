@@ -1,5 +1,11 @@
 """Main migrator class that coordinates the migration process."""
 
+# Fix Windows asyncio issue before any other imports
+import asyncio
+import platform
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import logging
 from typing import List, Tuple
 

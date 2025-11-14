@@ -1,5 +1,11 @@
 """Example script to run the LinkedIn to Notion migration with the post management UI."""
 
+# Fix Windows asyncio issue before any other imports
+import asyncio
+import platform
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import sys
 import os
 

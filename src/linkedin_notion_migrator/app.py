@@ -1,5 +1,11 @@
 """Streamlit UI for LinkedIn to Notion migration tool."""
 
+# Fix Windows asyncio issue before any other imports
+import asyncio
+import platform
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import logging
 import os
 from datetime import datetime
