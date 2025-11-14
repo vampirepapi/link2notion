@@ -187,6 +187,11 @@ Logs are displayed in the console with timestamps and log levels.
 - Verify you have saved posts at https://www.linkedin.com/my-items/saved-posts/
 - Check the browser console logs for scraping errors
 
+**Windows: NotImplementedError with Playwright (Streamlit):**
+- This is automatically handled by the tool
+- If you encounter this error, the tool will automatically switch to the Windows-compatible event loop
+- No manual configuration is required
+
 ## License
 
 MIT
