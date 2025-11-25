@@ -6,18 +6,27 @@ extracts post content and author names, and creates markdown files.
 
 Requirements:
 - playwright (pip install playwright)
+- python-dotenv (pip install python-dotenv)
 - Run: playwright install chromium
 
 Usage:
-- Run the script and log in manually when the browser opens
-- The script will wait for you to complete login, then scrape posts
+- Create a .env file with LINKEDIN_EMAIL and LINKEDIN_PASSWORD
+- Run the script
 """
 
 import os
 import re
 import time
+import webbrowser  # Added for opening HTML page
 from datetime import datetime
 from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("Please install python-dotenv: pip install python-dotenv")
+    exit(1)
 
 try:
     from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
@@ -27,9 +36,52 @@ except ImportError:
     exit(1)
 
 
-def sanitize_filename(text: str, max_length: int = 50) -> str:
+def login_to_linkedin(page) -> bool:
+    """Attempt to log in using credentials from .env file."""
+    email = os.getenv("LINKEDIN_EMAIL")
+    password = os.getenv("LINKEDIN_PASSWORD")
+    
+    if not email or not password:
+        print("No credentials found in .env file.")
+        print("Please create a .env file with LINKEDIN_EMAIL and LINKEDIN_PASSWORD")
+        return False
+    
+    print(f"Logging in as: {email}")
+    
+    try:
+        # Fill in email
+        email_input = page.wait_for_selector('input[name="session_key"], input#username', timeout=10000)
+        if email_input:
+            email_input.fill(email)
+        
+        # Fill in password
+        password_input = page.wait_for_selector('input[name="session_password"], input#password', timeout=5000)
+        if password_input:
+            password_input.fill(password)
+        
+        # Click sign in button
+        sign_in_button = page.query_selector('button[type="submit"], button[data-litms-control-urn="login-submit"]')
+        if sign_in_button:
+            sign_in_button.click()
+        
+        # Wait for navigation
+        time.sleep(5)
+        
+        # Check if login was successful (no longer on login page)
+        if "login" not in page.url and "signin" not in page.url and "checkpoint" not in page.url:
+            print("Login successful!")
+            return True
+        else:
+            print("Login may have failed or requires additional verification.")
+            return False
+            
+    except Exception as e:
+        print(f"Error during login: {e}")
+        return False
+
+
+def sanitize_filename(text: str, max_length: int = 80) -> str:
     """Create a safe filename from text."""
-    # Remove special characters and limit length
     safe = re.sub(r'[^\w\s-]', '', text)
     safe = re.sub(r'[-\s]+', '-', safe).strip('-')
     return safe[:max_length] if safe else 'untitled'
@@ -43,21 +95,38 @@ def extract_posts(page) -> list[dict]:
     print("Waiting for posts to load...")
     time.sleep(3)
     
-    # Scroll to load more posts
     print("Scrolling to load all posts...")
-    last_height = 0
-    scroll_attempts = 0
-    max_scrolls = 20
+    last_post_count = 0
+    no_new_posts_count = 0
+    scroll_count = 0
+    max_scrolls = 200  # Increased from 100 to 200
+    max_no_new_posts = 3  # Increased from 5 to 10 to handle slow loading
     
-    while scroll_attempts < max_scrolls:
+    while scroll_count < max_scrolls and no_new_posts_count < max_no_new_posts:
+        # Scroll down
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        time.sleep(2)
-        new_height = page.evaluate("document.body.scrollHeight")
-        if new_height == last_height:
-            break
-        last_height = new_height
-        scroll_attempts += 1
-        print(f"  Scrolled {scroll_attempts} times...")
+        time.sleep(2.5)  # Increased wait time from 2 to 2.5 seconds
+        
+        # Check current post count
+        current_count = page.evaluate("""
+            () => document.querySelectorAll('div[data-chameleon-result-urn]').length
+        """)
+        
+        scroll_count += 1
+        
+        if current_count > last_post_count:
+            print(f"  Scrolled {scroll_count} times... Found {current_count} posts")
+            last_post_count = current_count
+            no_new_posts_count = 0  # Reset counter when new posts found
+        else:
+            no_new_posts_count += 1
+            print(f"  Scrolled {scroll_count} times... No new posts (attempt {no_new_posts_count}/{max_no_new_posts})")
+        
+        if scroll_count % 5 == 0:
+            print("  Pausing for content to load...")
+            time.sleep(4)  # Increased pause time to 4 seconds
+    
+    print(f"Finished scrolling. Total scrolls: {scroll_count}")
     
     # The saved posts page uses a different structure than the feed
     post_selectors = [
@@ -163,7 +232,7 @@ def extract_posts(page) -> list[dict]:
     return posts
 
 
-def create_markdown_files(posts: list[dict], output_dir: str = "linkedin_saved_posts"):
+def create_markdown_files(posts: list[dict], output_dir: str = "saved_posts"):
     """Create markdown files for each post in the requested format."""
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
@@ -172,27 +241,24 @@ def create_markdown_files(posts: list[dict], output_dir: str = "linkedin_saved_p
     import_time = now.strftime("%B %d, %Y %I:%M %p (GMT+5:30)")
     
     for post in posts:
-        # Create title from first line of body
-        title = post['body'].split('\n')[0] if post['body'] else "LinkedIn Post"
-        title = title[:100]  # Limit title length
+        first_line = post['body'].split('\n')[0] if post['body'] else "LinkedIn Post"
         
-        # Create individual markdown file
-        filename = f"{post['index']:03d}-{sanitize_filename(post['author'])}.md"
+        title_slug = sanitize_filename(first_line)
+        filename = f"{post['index']:03d}-{title_slug}.md"
         filepath = output_path / filename
         
         # Format timestamp for Post Created At
         post_created = post['timestamp'] if post['timestamp'] else "Unknown"
         
-        # Build the markdown in the exact requested format
-        md_content = f"""# {title}
+        md_content = f"""# {first_line}
 
 App Imported Time: {import_time}
-Author: {post['author_url']}
+Author URL: {post['author_url']}
 Post Created At: {post_created}
 Post Link: {post['url']}
 
 <aside>
-<img src="{post['author_image']}" alt="{post['author_image']}" width="40px" /> [**{post['author']}**]({post['author_url']}) 
+<img src="{post['author_image']}" alt="{post['author']}" width="40px" /> **[{post['author']}]({post['author_url']})**
 
 {post['body'] if post['body'] else "*No text content available*"}
 
@@ -213,7 +279,8 @@ Total posts: {len(posts)}
 
 """
     for post in posts:
-        filename = f"{post['index']:03d}-{sanitize_filename(post['author'])}.md"
+        title_slug = sanitize_filename(post['body'].split('\n')[0] if post['body'] else "LinkedIn Post")
+        filename = f"{post['index']:03d}-{title_slug}.md"
         preview = post['body'][:80].replace('\n', ' ') + "..." if len(post['body']) > 80 else post['body'].replace('\n', ' ')
         index_content += f"- [{post['author']}]({filename}): {preview}\n"
     
@@ -224,6 +291,20 @@ Total posts: {len(posts)}
     return output_path
 
 
+def open_html_viewer(output_dir: str):
+    """Open the HTML viewer in the default browser."""
+    html_path = Path(output_dir) / "index.html"
+    
+    if html_path.exists():
+        # Convert to file:// URL
+        file_url = html_path.absolute().as_uri()
+        print(f"\nOpening blog viewer: {file_url}")
+        webbrowser.open(file_url)
+    else:
+        print(f"\nNote: HTML viewer not found at {html_path}")
+        print("Copy index.html to your saved_posts folder to view posts as a blog.")
+
+
 def main():
     print("=" * 60)
     print("LinkedIn Saved Posts Scraper")
@@ -231,9 +312,10 @@ def main():
     print()
     print("This script will:")
     print("1. Open LinkedIn in a browser")
-    print("2. Wait for you to log in (if needed)")
+    print("2. Log in automatically using .env credentials")
     print("3. Navigate to your saved posts")
     print("4. Extract all posts and create markdown files")
+    print("5. Open the blog viewer in your browser")
     print()
     print("Starting browser...")
     print()
@@ -247,33 +329,46 @@ def main():
         )
         page = context.new_page()
         
-        # Navigate to LinkedIn saved posts
         saved_posts_url = "https://www.linkedin.com/my-items/saved-posts/"
         print(f"Navigating to: {saved_posts_url}")
-        page.goto(saved_posts_url, wait_until="networkidle")
+        page.goto(saved_posts_url, wait_until="domcontentloaded", timeout=60000)
+        time.sleep(3)
         
-        # Check if we need to log in
         if "login" in page.url or "signin" in page.url:
             print()
             print("=" * 60)
             print("LOGIN REQUIRED")
             print("=" * 60)
-            print("Please log in to LinkedIn in the browser window.")
-            print("The script will continue automatically after login.")
-            print()
             
-            # Wait for user to log in (wait for URL to change)
-            try:
-                page.wait_for_url("**/my-items/saved-posts/**", timeout=300000)  # 5 min timeout
-                print("Login successful! Continuing...")
-            except PlaywrightTimeout:
-                print("Login timeout. Please run the script again.")
-                browser.close()
-                return
+            login_success = login_to_linkedin(page)
+            
+            if not login_success:
+                print()
+                print("Automatic login failed or not configured.")
+                print("Please log in manually in the browser window.")
+                print("The script will continue automatically after login.")
+                print()
+                
+                try:
+                    page.wait_for_url("**/my-items/saved-posts/**", timeout=300000)
+                    print("Login successful! Continuing...")
+                except PlaywrightTimeout:
+                    print("Login timeout. Please run the script again.")
+                    browser.close()
+                    return
+            else:
+                print("Navigating to saved posts...")
+                page.goto(saved_posts_url, wait_until="domcontentloaded", timeout=60000)
+                time.sleep(5)
         
-        # Wait for page to fully load
         print("Waiting for saved posts page to load...")
-        time.sleep(5)
+        try:
+            page.wait_for_selector("div[data-chameleon-result-urn], .entity-result, .reusable-search__result-container", timeout=30000)
+            print("Posts container found!")
+        except PlaywrightTimeout:
+            print("Could not find posts container, will try to extract anyway...")
+        
+        time.sleep(3)
         
         # Extract posts
         print("\nExtracting saved posts...")
@@ -288,14 +383,14 @@ def main():
         else:
             print(f"\nExtracted {len(posts)} posts!")
             
-            # Create markdown files
             output_dir = create_markdown_files(posts)
             print()
             print("=" * 60)
             print(f"SUCCESS! Created {len(posts)} markdown files in: {output_dir}")
             print("=" * 60)
+            
+            open_html_viewer(str(output_dir))
         
-        # Keep browser open briefly so user can see results
         print("\nClosing browser in 5 seconds...")
         time.sleep(5)
         browser.close()
